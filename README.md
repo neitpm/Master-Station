@@ -141,12 +141,42 @@ Master-Station/
 - Python 3.10 with OpenCV.
 
 ### Launching Full Station Stack
-```bash
-# On Windows environments:
-start-all.bat
+---
 
-# On Linux environments:
-chmod +x start-all.sh
-./start-all.sh
+## 7. Docker Multi-Container Compose Orchestration
+
+#### Figure 4: Multi-Container StationOS Compose Topology
+*Docker bridge network (`stationos-network`) binding `station-api`, `station-ai-engine`, and `go2rtc` with healthchecks and named volumes.*
+![Docker Station Orchestration 3D](docs/figures/docker_station_orchestration_3d.png)
+
+Master-Station provides complete Docker Compose orchestration across backend, media relay, and auxiliary analytics microservices.
+
+### A. Environment Configuration (`.env`)
+```bash
+# Copy template and configure variables
+cp .env.example .env
+
+# Key Environment Variables:
+# STATION_ID: Unique identifier for this substation node
+# CENTRAL_SERVER_URL: Optional cloud aggregation server
+# ConnectionStrings__Sqlite: SQLite storage path (default: /data/station.db)
 ```
-The platform automatically binds the backend API to `http://localhost:5000`, the AI Engine to `http://localhost:8000`, and launches the Electron desktop monitoring shell.
+
+### B. Compose Management Commands
+```bash
+# 1. Validate Docker Compose service definitions
+docker compose config
+
+# 2. Build and launch all station services in background
+docker compose up -d --build
+
+# 3. Check service health status
+docker compose ps
+
+# 4. Verify backend health endpoint
+curl -fsS http://localhost:5000/health
+
+# 5. Stop all containers cleanly
+docker compose down
+```
+

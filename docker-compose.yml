@@ -1,0 +1,82 @@
+# Master-Station (StationOS) Docker Orchestration Compose
+# Provides unified container orchestration for:
+# - station-api: C# ASP.NET Core .NET 8 Backend
+# - ai-engine: Python auxiliary video analytics & go2rtc relay
+# - go2rtc: Real-time low-latency WebRTC streaming gateway
+# - database: PostgreSQL (optional central/multi-site store)
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: stationos-backend:latest
+    container_name: station_api
+    environment:
+      Mode: Station
+      StationId: ${STATION_ID:-tram-a}
+      CentralServer: ${CENTRAL_SERVER_URL:-}
+      ConnectionStrings__Sqlite: "Data Source=/data/station.db"
+      ASPNETCORE_URLS: http://+:5000
+      Go2Rtc__ApiUrl: http://go2rtc:1984
+    volumes:
+      - station_data:/data
+      - snapshots:/data/snapshots
+      - recordings:/data/recordings
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - station-net
+
+  ai_engine:
+    build:
+      context: ./ai_engine
+      dockerfile: Dockerfile
+    image: stationos-ai-engine:latest
+    container_name: station_ai_engine
+    environment:
+      BACKEND_URL: http://backend:5000
+      GO2RTC_RTSP: rtsp://go2rtc:8554
+      GO2RTC_API: http://go2rtc:1984
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./ai_engine/data:/app/data
+      - ./ai_engine/model:/app/model
+    depends_on:
+      backend:
+        condition: service_healthy
+      go2rtc:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - station-net
+
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: station_go2rtc
+    volumes:
+      - ./go2rtc/go2rtc.yaml:/config/go2rtc.yaml
+    ports:
+      - "1984:1984"   # WebRTC API & GUI
+      - "8554:8554"   # RTSP Relay
+      - "8555:8555"   # WebRTC Media
+    restart: unless-stopped
+    networks:
+      - station-net
+
+volumes:
+  station_data:
+  snapshots:
+  recordings:
+
+networks:
+  station-net:
+    name: stationos-network
+    driver: bridge
